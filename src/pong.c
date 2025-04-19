@@ -1,153 +1,97 @@
 #include <stdio.h>
-void screen(int Lpad, int Rpad, int xBall, int yBall, int visota, int shirina, int score_A, int score_B);
-void score_points(int score_A, int score_B);
-// void Lev_goal(int xBall, int yBall, int visota, int shirina, int score_A, int score_B)
-int main() {
-    int shirina = 80;
-    int visota = 25;
-    int Lpad = (visota / 2) - 1;
-    int Rpad = (visota / 2) - 1;
-    int xBall = shirina / 2;
-    int yBall = visota / 2;
-    int score_A = 0;
-    int score_B = 0;
-    int b_move = 5;
+#include <stdbool.h>
+#include <termios.h>
+#include <unistd.h>
 
-    while (1) {
-        screen(Lpad, Rpad, xBall, yBall, visota, shirina, score_A, score_B);
+#define WIDTH 80
+#define HEIGHT 25
+#define PADDLE_SIZE 3
 
-        // vvod s kaviaturi
-        char v;
-        scanf("%c", &v);
-        if (v == 'A' || v == 'a') {
-            if (Lpad > 1) {
-                Lpad--;
-            }
-        } else if (v == 'Z' || v == 'z') {
-            if (Lpad + 2 < visota - 1) {
-                Lpad++;
-            }
-        } else if (v == 'K' || v == 'k') {
-            if (Rpad > 1) {
-                Rpad--;
-            }
-        } else if (v == 'M' || v == 'm') {
-            if (Rpad + 2 < visota - 1) Rpad++;
-        } else if (v == 'Q' || v == 'q') {
-            break;
-        }
-        // Left goal
-        if (xBall == 1) {
-            xBall = shirina / 2;
-            yBall = visota / 2;
-            Lpad = (visota / 2) - 2;
-            Rpad = (visota / 2) - 2;
-            score_B++;
-        }
-        // Right goal
-        if (xBall == shirina - 2) {
-            xBall = shirina / 2;
-            yBall = visota / 2;
-            Lpad = (visota / 2) - 1;
-            Rpad = (visota / 2) - 1;
-            score_A++;
-        }
-        // ball move
-        if (b_move == 1) {
-            xBall++;
-            yBall--;
-        }
-        if (b_move == 2) {
-            xBall++;
-        }
-        if (b_move == 3) {
-            xBall++;
-            yBall++;
-        }
-        if (b_move == 4) {
-            xBall--;
-            yBall++;
-        }
-        if (b_move == 5) {
-            xBall--;
-        }
-        if (b_move == 6) {
-            xBall--;
-            yBall--;
-        }
+typedef struct { int x, y; } Ball;
+typedef struct { int y; } Paddle;
+typedef struct { int player1, player2; } Score;
 
-        // otbivka Rpad
-        if (xBall == shirina - 4) {
-            if (yBall == Rpad) {
-                b_move = 6;
-            }
-            if (yBall == Rpad + 1) {
-                b_move = 5;
-            }
-            if (yBall == Rpad + 2) {
-                b_move = 4;
-            }
-        }
-
-        // otbivka Lpad
-        if (xBall == 4) {
-            if (yBall == Lpad) {
-                b_move = 1;
-            }
-            if (yBall == Lpad + 1) {
-                b_move = 2;
-            }
-            if (yBall == Lpad + 2) {
-                b_move = 3;
-            }
-        }
-
-        // otbivka Potolok
-        if (yBall == 1) {
-            if (b_move == 1) b_move = 3;
-            if (b_move == 6) b_move = 4;
-        }
-
-        // otbivka Pol
-        if (yBall == visota - 1) {
-            if (b_move == 3) b_move = 1;
-            if (b_move == 4) b_move = 6;
-        }
-        if (score_A == 21 || score_B == 21) {
-            break;
-        }
-    }
-    screen(Lpad, Rpad, xBall, yBall, visota, shirina, score_A, score_B);
+// Настройка терминала для неблокирующего ввода (Linux/macOS)
+void set_nonblocking_mode() {
+    struct termios ttystate;
+    tcgetattr(STDIN_FILENO, &ttystate);
+    ttystate.c_lflag &= ~(ICANON | ECHO);
+    ttystate.c_cc[VMIN] = 1; // Ждём 1 символ
+    tcsetattr(STDIN_FILENO, TCSANOW, &ttystate);
 }
-void screen(int Lpad, int Rpad, int xBall, int yBall, int visota, int shirina, int score_A, int score_B) {
-    for (int y = 0; y <= visota; y++) {
-        for (int x = 0; x <= shirina; x++) {
-            if ((y == 0 || y == visota) && x != 0 && x <= shirina - 1) {
-                printf("*");
-            } else if ((x == 0 || x == shirina) && y < visota + 1) {
-                printf("*");
-            } else if (y >= Lpad && y < Lpad + 3 && x == 3) {
-                printf("|");
-            } else if (y >= Rpad && y < Rpad + 3 && x == shirina - 3) {
-                printf("|");
-            } else if (y == yBall && x == xBall) {
-                printf("@");
-            } else {
-                printf(" ");
-            }
+
+// Очистка экрана
+void clear_screen() {
+    printf("\033[H\033[J");
+}
+
+// Отрисовка поля
+void draw_game(Ball ball, Paddle left, Paddle right, Score score) {
+    clear_screen();
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            if (y == 0 || y == HEIGHT - 1) printf("-");
+            else if (x == 0 || x == WIDTH - 1) printf("|");
+            else if (x == ball.x && y == ball.y) printf("O");
+            else if (x == 1 && (y >= left.y && y < left.y + PADDLE_SIZE)) printf("[");
+            else if (x == WIDTH - 2 && (y >= right.y && y < right.y + PADDLE_SIZE)) printf("]");
+            else printf(" ");
         }
         printf("\n");
     }
-    score_points(score_A, score_B);
+    printf("Score: %d - %d\n", score.player1, score.player2);
 }
 
-void score_points(int score_A, int score_B) {
-    printf("1st player score: %d\n", score_A);
-    printf("2nd Player score: %d\n", score_B);
-    if (score_A >= 21) {
-        printf("1st Player WON!!!");
+int main() {
+    Ball ball = {WIDTH / 2, HEIGHT / 2};
+    Paddle left = {HEIGHT / 2}, right = {HEIGHT / 2};
+    Score score = {0, 0};
+    int dx = 1, dy = 1; // Направление мяча
+    bool game_over = false;
+    char input;
+
+    set_nonblocking_mode();
+
+    while (!game_over) {
+        draw_game(ball, left, right, score);
+
+        // Обработка ввода
+        input = getchar();
+
+        // Движение ракеток
+        if (input == 'a' && left.y > 1) left.y--;
+        if (input == 'z' && left.y < HEIGHT - PADDLE_SIZE - 1) left.y++;
+        if (input == 'k' && right.y > 1) right.y--;
+        if (input == 'm' && right.y < HEIGHT - PADDLE_SIZE - 1) right.y++;
+
+        // Шаг игры (только при нажатии пробела)
+        if (input == ' ') {
+            ball.x += dx;
+            ball.y += dy;
+
+            // Отражение от стенок
+            if (ball.y <= 0 || ball.y >= HEIGHT - 1) dy *= -1;
+
+            // Отражение от ракеток
+            if (ball.x == 1 && ball.y >= left.y && ball.y < left.y + PADDLE_SIZE) dx *= -1;
+            if (ball.x == WIDTH - 2 && ball.y >= right.y && ball.y < right.y + PADDLE_SIZE) dx *= -1;
+
+            // Гол
+            if (ball.x <= 0) {
+                score.player2++;
+                ball = (Ball){WIDTH / 2, HEIGHT / 2};
+            }
+            if (ball.x >= WIDTH - 1) {
+                score.player1++;
+                ball = (Ball){WIDTH / 2, HEIGHT / 2};
+            }
+
+            // Проверка победы
+            if (score.player1 >= 21 || score.player2 >= 21) game_over = true;
+        }
     }
-    if (score_B >= 21) {
-        printf("2nd Player WON!!!");
-    }
+
+    clear_screen();
+    printf("Player %d wins!\n", (score.player1 > score.player2) ? 1 : 2);
+    return 0;
 }
