@@ -39,7 +39,7 @@ void draw_game(Ball ball, Paddle left, Paddle right, Score score) {
         mvprintw(right.y + i, WIDTH - 2, "]");
     }
     mvprintw(ball.y, ball.x, "O");
-    // Счёт
+    // Счёт игры
     mvprintw(HEIGHT, 0, "Score: %d - %d", score.player1, score.player2);
     refresh();
 }
